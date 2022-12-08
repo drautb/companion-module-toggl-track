@@ -1,0 +1,22 @@
+{
+  "name": "toggl-track",
+  "version": "1.0.0",
+  "manufacturer": "drautb",
+  "product": "toggl-track",
+  "shortname": "toggl-track",
+  "description": "Interact with toggl time tracking via stream deck",
+  "homepage": "https://github.com/drautb/companion-module-toggl-track",
+  "bugs": {
+    "url": "https://github.com/drautb/companion-module-toggl-track/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drautb/companion-module-toggl-track.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ben Draut <drautb@gmail.com>",
+  "license": "MIT"
+}
