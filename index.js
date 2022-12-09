@@ -37,6 +37,9 @@ const RED = rgb(255, 0, 0)
 class TogglTrackInstance extends instance_skel {
 
   timerRunning = false
+  timerStart = null
+  timerProjectId = null
+  totalSecondsByProject = {}
 
   constructor(system, id, config) {
     super(system, id, config)
@@ -253,16 +256,8 @@ class TogglTrackInstance extends instance_skel {
         }
       },
 
-      getDailyTotal: {
-        label: 'Get Daily Total',
-        options: [
-          {
-            type: 'dropdown',
-            label: 'Project',
-            id: 'projectId',
-            choices: self.projectChoices
-          },
-        ],
+      refreshDailyTotals: {
+        label: 'Refresh Daily Totals',
         callback: (action) => {
           var self = this
           const opt = action.options
@@ -282,27 +277,57 @@ class TogglTrackInstance extends instance_skel {
               const entries = result.data
               self.log('info', `Retrieved time entries successfully: ${entries.length}`)
 
-              var totalSeconds = entries.map(entry => entry.duration).filter(d => d > 0).reduce((acc, cur) => acc + cur, 0)
+              self.totalSecondsByProject = entries.filter(entry => entry.duration > 0).reduce((table, entry) => {
+                const key = entry.project_id
+                if (!table[key]) {
+                  table[key] = 0
+                }
+                table[key] += entry.duration
+                return table
+              }, {})
+
               var openEntry = entries.find(e => e.duration < 0)
               if (openEntry) {
                 self.timerRunning = true
                 self.timerStart = Math.floor(Date.parse(openEntry.start) / 1000)
-                totalSeconds += self.getCurrentTimestamp() - self.timerStart
+                self.timerProjectId = openEntry.project_id
               } else {
                 self.timerRunning = false
                 self.timerStart = null
+                self.timerProjectId = null
               }
 
               self.updateGeneratedVariables()
             }
           }, self.getHeaders())
         }
+      },
+
+      tickCurrentTimer: {
+        label: 'Tick Current Timer',
+        callback: (action) => {
+          var self = this
+
+          self.updateGeneratedVariables()
+        }
       }
     })
   }
 
   updateFeedbacks() {
+    var self = this
+
     this.setFeedbackDefinitions({
+
+      refreshDailyTotals: {
+        type: 'advanced',
+        label: 'Refresh Daily Totals',
+        callback: (feedback) => {
+          self.log('info', 'Feedback CB invoked: ' + JSON.stringify(feedback))
+
+          return {}
+        }
+      }
 
     })
   }
@@ -320,14 +345,21 @@ class TogglTrackInstance extends instance_skel {
   updateGeneratedVariables() {
     var self = this
 
-    self.setVariable('dailyTotal
-    var hours = Math.floor(totalSeconds / 3600)
-    var minutes = Math.floor((totalSeconds % 3600) / 60)
-    var seconds = (totalSeconds % 3600) % 60
+    for (const projectId in self.totalSecondsByProject) {
+      const projectName = self.projectChoices.find(p => p.id === projectId).label
+      var totalSeconds = self.totalSecondsByProject[projectId]
+      if (self.timerRunning && self.timerProjectId === projectId) {
+        totalSeconds += self.getCurrentTimestamp() - self.timerStart
+      }
 
-    self.setVariable('dailyTotalHours', hours.toString().padStart(2, '0'))
-    self.setVariable('dailyTotalMinutes', minutes.toString().padStart(2, '0'))
-    self.setVariable('dailyTotalSeconds', seconds.toString().padStart(2, '0'))
+      var hours = Math.floor(totalSeconds / 3600)
+      var minutes = Math.floor((totalSeconds % 3600) / 60)
+      var seconds = (totalSeconds % 3600) % 60
+
+      self.setVariable(`todayHH_${projectName}`, hours.toString().padStart(2, '0'))
+      self.setVariable(`todayMM_${projectName}`, minutes.toString().padStart(2, '0'))
+      self.setVariable(`todaySS_${projectName}`, seconds.toString().padStart(2, '0'))
+    }
   }
 
   getTimestampForToday() {
