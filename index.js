@@ -23,7 +23,6 @@ const color = (red, green, blue) => {
 const rgbToColor = (rgbVal) => {
   return color((rgbVal >> 16) & 0xff, (rgbVal >> 8) & 0xff, rgbVal & 0xff)
 }
-
 const colorToRgb = (color) => {
   return rgb(color.r, color.g, color.b)
 }
@@ -35,6 +34,9 @@ const RED = rgb(255, 0, 0)
  * Companion instance class for Traffic Light
  */
 class TogglTrackInstance extends instance_skel {
+
+  workspaceChoices = []
+  projectChoices = []
 
   timerRunning = false
   timerStart = null
@@ -105,6 +107,7 @@ class TogglTrackInstance extends instance_skel {
           'label': p.name
         }))
         self.status(self.STATUS_OK);
+        self.checkFeedbacks('refreshDailyTotals')
         self.updateInstance()
       }
     }
@@ -158,32 +161,9 @@ class TogglTrackInstance extends instance_skel {
     }
   }
 
-  updateVariables() {
-    var self = this
-
-    this.setVariableDefinitions([
-      {
-        label: 'Daily Total Hours',
-        name: 'dailyTotalHours'
-      },
-      {
-        label: 'Daily Total Minutes',
-        name: 'dailyTotalMinutes'
-      },
-      {
-        label: 'Daily Total Seconds',
-        name: 'dailyTotalSeconds'
-      }
-    ])
-
-    self.setVariable('dailyTotalHours', 0)
-    self.setVariable('dailyTotalMinutes', 0)
-    self.setVariable('dailyTotalSeconds', 0)
-  }
-
   updateInstance() {
     this.log('info', 'Updating instance')
-    this.updateVariables()
+    this.updateGeneratedVariables()
     this.updateActions()
     this.updateFeedbacks()
   }
@@ -228,6 +208,8 @@ class TogglTrackInstance extends instance_skel {
               self.log('info', `Started timer successfully: ${JSON.stringify(result.data)}`)
               self.timerRunning = true
               self.timerStart = self.getCurrentTimestamp()
+              self.timerProjectId = opt.projectId
+              self.checkFeedbacks('refreshDailyTotals')
             }
           }, self.getHeaders())
         }
@@ -250,21 +232,18 @@ class TogglTrackInstance extends instance_skel {
                 self.log('info', `Stopped current timer successfully: ${JSON.stringify(result.data)}`)
                 self.timerRunning = false
                 self.timerStart = null
+                self.timerProjectId = null
+                self.checkFeedbacks('refreshDailyTotals')
               }
             }, self.getHeaders())
           })
         }
       },
-
+/*
       refreshDailyTotals: {
         label: 'Refresh Daily Totals',
         callback: (action) => {
           var self = this
-          const opt = action.options
-
-          if (!opt.projectId) {
-            self.log('error', 'Project has not been set, will not query daily total.')
-          }
 
           var url = `https://api.track.toggl.com/api/v9/me/time_entries?since=${self.getTimestampForToday()}`
           self.log('info', `Getting time entries ${url}`)
@@ -302,6 +281,7 @@ class TogglTrackInstance extends instance_skel {
           }, self.getHeaders())
         }
       },
+      */
 
       tickCurrentTimer: {
         label: 'Tick Current Timer',
@@ -319,11 +299,77 @@ class TogglTrackInstance extends instance_skel {
 
     this.setFeedbackDefinitions({
 
+      updateStartButtonColor: {
+        type: 'advanced',
+        label: 'Update Start Button Color',
+        callback: (feedback) => {
+          var self = this
+          var color = BLACK
+          if (!self.timerRunning) {
+            color = GREEN
+          }
+
+          return {
+            bgcolor: color
+          }
+        }
+      },
+
+      updateStopButtonColor: {
+        type: 'advanced',
+        label: 'Update Stop Button Color',
+        callback: (feedback) => {
+          var self = this
+          var color = BLACK
+          if (self.timerRunning) {
+            color = RED
+          }
+
+          return {
+            bgcolor: color
+          }
+        }
+      },
+
       refreshDailyTotals: {
         type: 'advanced',
         label: 'Refresh Daily Totals',
         callback: (feedback) => {
-          self.log('info', 'Feedback CB invoked: ' + JSON.stringify(feedback))
+          var self = this
+          var url = `https://api.track.toggl.com/api/v9/me/time_entries?since=${self.getTimestampForToday()}`
+          self.log('info', `Getting time entries ${url}`)
+          self.system.emit('rest_get', url, function (err, result) {
+            if (err !== null) {
+              self.log('error', `Error getting time entries (${result.error.code})`);
+            } else if (result.response.statusCode !== 200) {
+              self.log('error', `Received non-200 response: ${result.response.statusCode} (${result.data})`)
+            } else {
+              const entries = result.data
+              self.log('info', `Retrieved time entries successfully: ${entries.length}`)
+
+              self.totalSecondsByProject = entries.filter(entry => entry.duration > 0).reduce((table, entry) => {
+                const key = entry.project_id
+                if (!table[key]) {
+                  table[key] = 0
+                }
+                table[key] += entry.duration
+                return table
+              }, {})
+
+              var openEntry = entries.find(e => e.duration < 0)
+              if (openEntry) {
+                self.timerRunning = true
+                self.timerStart = Math.floor(Date.parse(openEntry.start) / 1000)
+                self.timerProjectId = openEntry.project_id
+              } else {
+                self.timerRunning = false
+                self.timerStart = null
+                self.timerProjectId = null
+              }
+
+              self.updateGeneratedVariables()
+            }
+          }, self.getHeaders())
 
           return {}
         }
@@ -345,10 +391,34 @@ class TogglTrackInstance extends instance_skel {
   updateGeneratedVariables() {
     var self = this
 
+    var variableDefs = []
     for (const projectId in self.totalSecondsByProject) {
-      const projectName = self.projectChoices.find(p => p.id === projectId).label
+      const projectName = self.projectChoices.find(p => p.id == projectId)?.label
+      if (!projectName) {
+        continue
+      }
+      variableDefs.push({
+        label: `Hours Today - ${projectName}`,
+        name: `todayHH_${projectName}`
+      })
+      variableDefs.push({
+        label: `Minutes Today - ${projectName}`,
+        name: `todayMM_${projectName}`
+      })
+      variableDefs.push({
+        label: `Seconds Today - ${projectName}`,
+        name: `todaySS_${projectName}`
+      })
+    }
+    self.setVariableDefinitions(variableDefs)
+
+    for (const projectId in self.totalSecondsByProject) {
+      const projectName = self.projectChoices.find(p => p.id == projectId)?.label
+      if (!projectName) {
+        continue
+      }
       var totalSeconds = self.totalSecondsByProject[projectId]
-      if (self.timerRunning && self.timerProjectId === projectId) {
+      if (self.timerRunning && self.timerProjectId == projectId) {
         totalSeconds += self.getCurrentTimestamp() - self.timerStart
       }
 
