@@ -224,6 +224,7 @@ class TogglTrackInstance extends instance_skel {
             } else {
               self.log('info', `Started timer successfully: ${JSON.stringify(result.data)}`)
               self.timerRunning = true
+              self.timerStart = self.getCurrentTimestamp()
             }
           }, self.getHeaders())
         }
@@ -245,6 +246,7 @@ class TogglTrackInstance extends instance_skel {
               } else {
                 self.log('info', `Stopped current timer successfully: ${JSON.stringify(result.data)}`)
                 self.timerRunning = false
+                self.timerStart = null
               }
             }, self.getHeaders())
           })
@@ -277,18 +279,21 @@ class TogglTrackInstance extends instance_skel {
             } else if (result.response.statusCode !== 200) {
               self.log('error', `Received non-200 response: ${result.response.statusCode} (${result.data})`)
             } else {
-              self.log('info', `Retrieved time entries successfully: ${JSON.stringify(result.data)}`)
-              var closedSeconds = result.data.map(entry => entry.duration).filter(d => d > 0).reduce((acc, cur) => acc + cur, 0)
-              self.log('info', 'Closed seconds: ' + closedSeconds)
-              var hours = Math.floor(closedSeconds / 3600)
-              var minutes = Math.floor((closedSeconds % 3600) / 60)
-              var seconds = (closedSeconds % 3600) % 60
+              const entries = result.data
+              self.log('info', `Retrieved time entries successfully: ${entries.length}`)
 
-              self.setVariable('dailyTotalHours', hours.toString().padStart(2, '0'))
-              self.setVariable('dailyTotalMinutes', minutes.toString().padStart(2, '0'))
-              self.setVariable('dailyTotalSeconds', seconds.toString().padStart(2, '0'))
-              // TODO: Current time entry ongoing
+              var totalSeconds = entries.map(entry => entry.duration).filter(d => d > 0).reduce((acc, cur) => acc + cur, 0)
+              var openEntry = entries.find(e => e.duration < 0)
+              if (openEntry) {
+                self.timerRunning = true
+                self.timerStart = Math.floor(Date.parse(openEntry.start) / 1000)
+                totalSeconds += self.getCurrentTimestamp() - self.timerStart
+              } else {
+                self.timerRunning = false
+                self.timerStart = null
+              }
 
+              self.updateGeneratedVariables()
             }
           }, self.getHeaders())
         }
@@ -312,8 +317,25 @@ class TogglTrackInstance extends instance_skel {
     this.log('info', `Toggle track module instance destroyed: ${this.id}`)
   }
 
+  updateGeneratedVariables() {
+    var self = this
+
+    self.setVariable('dailyTotal
+    var hours = Math.floor(totalSeconds / 3600)
+    var minutes = Math.floor((totalSeconds % 3600) / 60)
+    var seconds = (totalSeconds % 3600) % 60
+
+    self.setVariable('dailyTotalHours', hours.toString().padStart(2, '0'))
+    self.setVariable('dailyTotalMinutes', minutes.toString().padStart(2, '0'))
+    self.setVariable('dailyTotalSeconds', seconds.toString().padStart(2, '0'))
+  }
+
   getTimestampForToday() {
     return new Date().setHours(0, 0, 0, 0) / 1000
+  }
+
+  getCurrentTimestamp() {
+    return Math.floor(Date.now() / 1000)
   }
 }
 
