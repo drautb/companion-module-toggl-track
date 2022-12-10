@@ -12,24 +12,9 @@ const rgb = (red, green, blue) => {
   return ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff)
 }
 
-const color = (red, green, blue) => {
-  return {
-    r: red,
-    g: green,
-    b: blue
-  }
-}
-
-const rgbToColor = (rgbVal) => {
-  return color((rgbVal >> 16) & 0xff, (rgbVal >> 8) & 0xff, rgbVal & 0xff)
-}
-const colorToRgb = (color) => {
-  return rgb(color.r, color.g, color.b)
-}
-
 const BLACK = rgb(0, 0, 0)
 const WHITE = rgb(255, 255, 255)
-const GREEN = rgb(0, 255, 0)
+const GREEN = rgb(50, 164, 49)
 const RED = rgb(255, 0, 0)
 
 /**
