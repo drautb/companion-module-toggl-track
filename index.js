@@ -308,7 +308,7 @@ class TogglTrackInstance extends instance_skel {
           const totalSeconds = self.getRunningTotal(projectId, self.dailySecondsByProject)
 
           return {
-            text: self.totalSecondsToHMS(totalSeconds)
+            text: `${self.totalSecondsToHMS(totalSeconds)}\\n8:00:00`
           }
         }
       },
@@ -330,7 +330,7 @@ class TogglTrackInstance extends instance_skel {
           const totalSeconds = self.getRunningTotal(projectId, self.weeklySecondsByProject)
 
           return {
-            text: self.totalSecondsToHMS(totalSeconds)
+            text: `${self.totalSecondsToHMS(totalSeconds)}\\n${new Date().getDay() * 8}:00:00`
           }
         }
       }
@@ -412,8 +412,8 @@ class TogglTrackInstance extends instance_skel {
               projectId: '187813183'
             }
           },
-          { action: 'refreshDailyTotals' },
-          { action: 'refreshWeeklyTotals' }
+          { action: 'refreshDailyTotals', delay: 5000 },
+          { action: 'refreshWeeklyTotals', delay: 5000 }
 
         ],
         feedbacks: [
@@ -435,8 +435,8 @@ class TogglTrackInstance extends instance_skel {
         },
         actions: [
           { action: 'stopTimer' },
-          { action: 'refreshDailyTotals' },
-          { action: 'refreshWeeklyTotals' }
+          { action: 'refreshDailyTotals', delay: 5000 },
+          { action: 'refreshWeeklyTotals', delay: 5000 }
         ],
         feedbacks: [
           { type: 'updateStopButtonColor' }
