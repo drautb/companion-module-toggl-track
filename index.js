@@ -358,7 +358,9 @@ class TogglTrackInstance extends instance_skel {
 
   refreshTotals(startTimestamp, tableName) {
     var self = this
-    var url = `https://api.track.toggl.com/api/v9/me/time_entries?since=${startTimestamp}`
+    var startDate = self.timestampToDate(startTimestamp)
+    var endDate = self.timestampToDate(self.getTimestampForTomorrow())
+    var url = `https://api.track.toggl.com/api/v9/me/time_entries?start_date=${startDate}&end_date=${endDate}`
     self.log('info', `Getting time entries ${url}`)
     self.system.emit('rest_get', url, function (err, result) {
       if (err !== null) {
@@ -500,6 +502,10 @@ class TogglTrackInstance extends instance_skel {
     return new Date().setHours(0, 0, 0, 0) / 1000
   }
 
+  getTimestampForTomorrow() {
+    return this.getTimestampForToday() + (24 * 60 * 60)
+  }
+
   getTimestampForStartOfWeek() {
     var dayOfWeekIdx = new Date().getDay()
     var timestampForToday = this.getTimestampForToday()
@@ -509,6 +515,15 @@ class TogglTrackInstance extends instance_skel {
   getCurrentTimestamp() {
     return Math.floor(Date.now() / 1000)
   }
+
+  timestampToDate(timestamp) {
+    const date = new Date(timestamp * 1000)
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
 }
 
 module.exports = TogglTrackInstance
